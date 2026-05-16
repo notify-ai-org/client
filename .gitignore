@@ -1,0 +1,8 @@
+**/target/
+**/node_modules/
+**/dist/
+*.iml
+.idea/
+.DS_Store
+application-local.properties
+minikube-secrets-template.yaml
