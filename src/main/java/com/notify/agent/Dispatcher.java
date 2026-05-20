@@ -40,7 +40,8 @@ public class Dispatcher implements Runnable {
     private final Runnable onTokenExpired;
     private final EventListener eventListener;
     private volatile boolean running = true;
-    private final String TOPIC = "notify.event";
+    private final String PRODUCER_TOPIC = "notify-v1-events";
+    private final String CONSUMER_TOPIC = "notify-v1-scheduled-events";
     private static final Logger log = LoggerFactory.getLogger(Dispatcher.class);
     private final int partitions;
 
@@ -59,13 +60,21 @@ public class Dispatcher implements Runnable {
         this.consumer = consumer;
         this.producer = producer;
         this.eventListener = eventListener;
-        this.partitions = consumer.partitionsFor(TOPIC).size();
+        this.partitions = producer.partitionsFor(PRODUCER_TOPIC).size();
     }
+
+    private Thread consumerThread;
 
     public void stop() {
         running = false;
-        consumer.commitSync();
-        consumer.close();
+        if (consumerThread != null && consumerThread.isAlive()) {
+            consumer.wakeup(); // Interrupt the consumer poll
+            try {
+                consumerThread.join(5000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
         producer.flush();
         producer.close();
     }
@@ -105,10 +114,18 @@ public class Dispatcher implements Runnable {
                     List<EventCapture> toSend = new ArrayList<>(eventBatch);
                     eventBatch.clear();
                     for (EventCapture event : toSend) {
+                        if (event.getSubjectResult() == null) {
+                            String tenantId = extractTenantId(tokenSupplier.get());
+                            String key = tenantId + ":" + event.getEvent().getName();
+                            Integer partition = (Math.abs(Objects.hashCode(tenantId)) % partitions);
+                            producer.send(new ProducerRecord<>(PRODUCER_TOPIC, partition, key, event));
+                        }
                         for (Subject subject : event.getSubjectResult().getSubjects()) {
-                            String key = subject.getSubjectId();
-                            String partition = "part-" + (Math.abs(Objects.hashCode(key)) % partitions);
-                            producer.send(new ProducerRecord<>(TOPIC, partition, event));
+                            String tenantId = extractTenantId(tokenSupplier.get());
+                            String key = tenantId + ":" + event.getEvent().getName() + ":"
+                                    + subject.getSubjectId();
+                            Integer partition = (Math.abs(Objects.hashCode(subject.getSubjectId())) % partitions);
+                            producer.send(new ProducerRecord<>(PRODUCER_TOPIC, partition, key, event));
                         }
                         Thread.sleep(100);
                     }
@@ -129,9 +146,24 @@ public class Dispatcher implements Runnable {
         }
     }
 
+    private String extractTenantId(String token) {
+        if (token == null || token.isEmpty()) return "unknown-tenant";
+        try {
+            String[] parts = token.split("\\.");
+            if (parts.length > 1) {
+                String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
+                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(payload);
+                if (node.has("tenantId")) return node.get("tenantId").asText();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to extract tenantId from token", e);
+        }
+        return "unknown-tenant";
+    }
+
     private void spawnConsumer() {
         // Subscribe to the topic and let Kafka's assignor handle partition distribution
-        consumer.subscribe(Collections.singletonList(TOPIC), new ConsumerRebalanceListener() {
+        consumer.subscribe(Collections.singletonList(CONSUMER_TOPIC), new ConsumerRebalanceListener() {
             @Override
             public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
                 log.info("Revoked partitions: {}", partitions);
@@ -154,8 +186,9 @@ public class Dispatcher implements Runnable {
             }
         });
 
-        log.info("Consumer thread spawned and subscribed to topic {}", TOPIC);
-        consumeMessages(consumer);
+        log.info("Consumer thread spawned and subscribed to topic {}", CONSUMER_TOPIC);
+        consumerThread = new Thread(() -> consumeMessages(consumer), "notify-kafka-consumer");
+        consumerThread.start();
     }
 
     private void consumeMessages(KafkaConsumer<String, EventSchedule> consumer) {
@@ -208,11 +241,15 @@ public class Dispatcher implements Runnable {
         } finally {
             try {
                 if (running) {
-                    // We only do this if we aren't already closed by a crash
                     consumer.commitSync();
                 }
             } catch (Exception e) {
                 log.warn("Failed to commit synchronously on shutdown/exit", e);
+            }
+            try {
+                consumer.close();
+            } catch (Exception e) {
+                log.warn("Failed to close consumer cleanly", e);
             }
         }
         log.info("Kafka consumer thread stopped");

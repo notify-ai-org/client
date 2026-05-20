@@ -85,7 +85,7 @@ public class Bootstrapper {
         invokeManager.buildFrom(annotationProcessor);
 
         String rawToken = props.getClientToken();
-        DecodedToken decoded = decodeToken(rawToken, clientId);
+        DecodedToken decoded = decodeToken(rawToken, props.getClientId());
         this.clientId = decoded.clientId;
         String apiKey = decoded.apiKey;
         String apiSecret = decoded.apiSecret;

@@ -7,12 +7,25 @@
   <version>1.0.0</version>
   <name>Notification Engine Client SDK</name>
   <description>Client SDK for Notification Engine - attaches to Spring Boot, sends vocabulary/rules/events to acp-server</description>
+  <url>https://github.com/rohan-naik07/notify-ai</url>
   <licenses>
     <license>
       <name>MIT License</name>
       <url>https://opensource.org/licenses/MIT</url>
     </license>
   </licenses>
+  <developers>
+    <developer>
+      <id>rohan-naik07</id>
+      <name>Rohan Naik</name>
+      <email>rohan.nn1203@gmail.com</email>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:git://github.com/rohan-naik07/notify-ai.git</connection>
+    <developerConnection>scm:git:ssh://github.com/rohan-naik07/notify-ai.git</developerConnection>
+    <url>https://github.com/rohan-naik07/notify-ai</url>
+  </scm>
   <distributionManagement>
     <repository>
       <id>ossrh</id>

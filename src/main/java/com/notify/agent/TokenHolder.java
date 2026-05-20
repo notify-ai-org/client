@@ -9,12 +9,14 @@ import java.util.concurrent.atomic.AtomicReference;
  * Thread-safe. Implements {@link TokenStore} so it can be injected into
  * {@code JwtService} without requiring any network or persistence dependency.
  *
- * <p>{@link #invalidateTokens} clears the in-memory state; there is no
- * denylist — the SDK trusts JWT expiry for revocation.</p>
+ * <p>
+ * {@link #invalidateTokens} clears the in-memory state; there is no
+ * denylist — the SDK trusts JWT expiry for revocation.
+ * </p>
  */
 public class TokenHolder implements TokenStore {
 
-    private final AtomicReference<String> token       = new AtomicReference<>(null);
+    private final AtomicReference<String> token = new AtomicReference<>(null);
     private final AtomicReference<String> refreshToken = new AtomicReference<>(null);
     private volatile long expiresAtMs = 0;
 
@@ -22,14 +24,26 @@ public class TokenHolder implements TokenStore {
     // TokenHolder-specific read API
     // -------------------------------------------------------------------------
 
-    public String  getToken()        { return token.get(); }
-    public String  getRefreshToken() { return refreshToken.get(); }
-    public boolean isExpired()       { return System.currentTimeMillis() >= expiresAtMs; }
-    public boolean hasToken()        { return token.get() != null && !token.get().isEmpty(); }
+    public String getToken() {
+        return token.get();
+    }
+
+    public String getRefreshToken() {
+        return refreshToken.get();
+    }
+
+    public boolean isExpired() {
+        return System.currentTimeMillis() >= expiresAtMs;
+    }
+
+    public boolean hasToken() {
+        return token.get() != null && !token.get().isEmpty();
+    }
 
     public void setTokens(String accessToken, String refresh, long expiresInMs) {
         token.set(accessToken);
-        if (refresh != null) refreshToken.set(refresh);
+        if (refresh != null)
+            refreshToken.set(refresh);
         this.expiresAtMs = expiresInMs > 0
                 ? System.currentTimeMillis() + expiresInMs
                 : Long.MAX_VALUE;
@@ -48,11 +62,12 @@ public class TokenHolder implements TokenStore {
 
     /**
      * Stores the access token in-memory.
-     * TTL parameters are used to compute the local expiry; no external store is involved.
+     * TTL parameters are used to compute the local expiry; no external store is
+     * involved.
      */
     @Override
     public void storeTokens(String userId, String accessToken, String refreshToken,
-                            long accessTtlSeconds, long refreshTtlSeconds) {
+            long accessTtlSeconds, long refreshTtlSeconds) {
         setTokens(accessToken, refreshToken, accessTtlSeconds * 1000);
     }
 

@@ -19,6 +19,7 @@ import com.notify.agent.annotations.EnableNotify;
 @Configuration
 @ConditionalOnClass(EnableNotify.class)
 @EnableConfigurationProperties(NotifyProperties.class)
+@org.springframework.context.annotation.Import(com.notify.agent.config.KafkaConfig.class)
 public class NotifyAutoConfiguration {
 
     @Bean
