@@ -12,14 +12,13 @@ public final class EmailSubject extends Subject {
     private final String bcc;
 
     public EmailSubject(
-            String subjectId,
             String email,
             String cc,
             String bcc,
             String correlationId,
             Map<String, String> attributes) {
 
-        super(subjectId, Channel.EMAIL, correlationId, attributes);
+        super(email, Channel.EMAIL, correlationId, attributes);
         this.email = Objects.requireNonNull(email, "email");
         this.cc = cc;
         this.bcc = bcc;

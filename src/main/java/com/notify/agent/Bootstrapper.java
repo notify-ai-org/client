@@ -10,6 +10,8 @@ import com.notify.agent.client.models.metadata.EventMetadata;
 import com.notify.agent.client.models.metadata.RuleMetadata;
 
 import jakarta.annotation.PreDestroy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.List;
@@ -37,6 +39,8 @@ import com.notify.agent.config.KafkaConfig;
  */
 public class Bootstrapper {
 
+    private static final Logger log = LoggerFactory.getLogger(Bootstrapper.class);
+
     private final NotifyProperties props;
     private final AnnotationProcessor annotationProcessor;
     private final VocabularyManager vocabularyManager;
@@ -47,7 +51,7 @@ public class Bootstrapper {
     private final MetricsManager metricsManager;
     private final EventListener eventListener;
     private final KafkaConfig kafkaConfig;
-    
+
     private KafkaConsumer<String, EventSchedule> consumer;
     private KafkaProducer<String, EventCapture> producer;
 
@@ -81,39 +85,55 @@ public class Bootstrapper {
      * Dispatcher.
      */
     public void bootstrap() {
+        log.info("Starting Notification Engine SDK bootstrap sequence...");
         annotationProcessor.process();
         invokeManager.buildFrom(annotationProcessor);
 
         String rawToken = props.getClientToken();
+        log.debug("Decoding client credentials from token properties");
         DecodedToken decoded = decodeToken(rawToken, props.getClientId());
         this.clientId = decoded.clientId;
         String apiKey = decoded.apiKey;
         String apiSecret = decoded.apiSecret;
-
+        log.info("Decoded client credentials. Client ID: {}", clientId);
 
         // Initialize Kafka Producer and Consumer dynamically
+        log.info("Initializing dynamic Kafka client properties...");
         Map<String, Object> producerProps = kafkaConfig.producerProperties();
         Map<String, Object> consumerProps = kafkaConfig.consumerProperties();
-        
+
         if (!apiKey.isEmpty() && !apiSecret.isEmpty()) {
-            String jaasConfig = String.format("org.apache.kafka.common.security.plain.PlainLoginModule required username='%s' password='%s';", apiKey, apiSecret);
+            log.debug("Configuring Kafka SASL authentication");
+            String jaasConfig = String.format(
+                    "org.apache.kafka.common.security.plain.PlainLoginModule required username='%s' password='%s';",
+                    apiKey, apiSecret);
             producerProps.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfig);
             consumerProps.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfig);
             producerProps.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_SSL");
             consumerProps.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_SSL");
             producerProps.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
             consumerProps.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
+        } else {
+            log.debug("No SASL credentials found in token; initializing without SASL.");
         }
-        
+
         if (clientId != null && !clientId.isEmpty()) {
             producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, clientId + "-producer");
             consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId + "-consumer");
         }
 
+        // Configure type-specific value serializer and deserializer
+        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, EventCaptureKafkaSerializer.class.getName());
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+                EventScheduleKafkaDeserializer.class.getName());
+
+        log.debug("Instantiating Kafka producer and consumer...");
         this.producer = new KafkaProducer<>(producerProps);
         this.consumer = new KafkaConsumer<>(consumerProps);
+        log.info("Kafka clients instantiated successfully.");
 
         try {
+            log.info("Registering client with acp-server at: {}", props.getAcpServerUrl());
             ClientRegistrationDto.Request reg = new ClientRegistrationDto.Request();
             reg.setClientId(clientId);
             reg.setRawToken(rawToken);
@@ -121,16 +141,23 @@ public class Bootstrapper {
             reg.setBasePackage(props.getBasePackage());
             ClientRegistrationDto.Response resp = acpClient.register(reg, null);
             if (resp != null && resp.getToken() != null) {
-                tokenHolder.setTokens(resp.getToken(), resp.getRefreshToken(), resp.getExpiresInMs());
+                tokenHolder.setTokens(resp.getToken(), resp.getRefreshToken(), resp.getKafkaHeaderToken(),
+                        resp.getExpiresInMs());
+                log.info("Client registration successful. Access token received and saved.");
+            } else {
+                log.warn("Client registration response did not contain tokens.");
             }
         } catch (Exception e) {
-            // acp-server may not have /api/client/register; continue without auth
+            log.warn("Client registration failed (continuing without authentication): {}", e.getMessage());
+            return;
         }
 
         List<EventMetadata> events = annotationProcessor.getEvents();
+        log.info("Found {} scanned event(s) to register.", events.size());
         if (!events.isEmpty()) {
             events.forEach(
                     (event) -> {
+                        log.debug("Enqueuing REGISTER event for event name: {}", event.getEvent().getName());
                         EventCapture dto = new EventCapture();
                         dto.setEvent(event.getEvent());
                         dto.getEvent().setEventType("REGISTER");
@@ -142,27 +169,35 @@ public class Bootstrapper {
         }
 
         List<ClassModel> vocab = vocabularyManager.toClassModelDtoList();
-        if (!vocab.isEmpty())
+        log.info("Found {} vocabulary models to register.", vocab.size());
+        if (!vocab.isEmpty()) {
             buffer.addVocabulary(vocab);
+        }
 
-        for (RuleMetadata r : annotationProcessor.getRules()) {
+        List<RuleMetadata> rules = annotationProcessor.getRules();
+        log.info("Found {} scanned rule(s) to register.", rules.size());
+        for (RuleMetadata r : rules) {
+            log.debug("Enqueuing rule registration: {}", r.getName());
             String ev = (r.getEvent() != null && !r.getEvent().isEmpty()) ? r.getEvent() : "*";
             buffer.addRule(ev, r.getName(), r.getDescription(), null);
         }
 
-        dispatcher = new Dispatcher(buffer, acpClient, tokenHolder::getToken, this::refreshToken,
+        log.info("Initializing Dispatcher with background worker thread.");
+        dispatcher = new Dispatcher(buffer, acpClient, tokenHolder, this::refreshToken,
                 consumer, producer, eventListener);
         dispatcherThread = new Thread(dispatcher, "notify-dispatcher");
         dispatcherThread.setDaemon(false);
         dispatcherThread.start();
+        log.info("Dispatcher background thread started successfully.");
     }
 
     /**
      * Package-private for unit testing: decodes the Base64 token JSON and
      * returns the extracted credentials without touching Kafka or network.
      *
-     * @param rawToken  Base64-encoded JSON string, may be null/empty
-     * @param fallbackClientId  the clientId from properties to use when the token has none
+     * @param rawToken         Base64-encoded JSON string, may be null/empty
+     * @param fallbackClientId the clientId from properties to use when the token
+     *                         has none
      */
     DecodedToken decodeToken(String rawToken, String fallbackClientId) {
         String clientId = fallbackClientId;
@@ -172,11 +207,14 @@ public class Bootstrapper {
             try {
                 String decodedJson = new String(Base64.getDecoder().decode(rawToken));
                 JsonNode node = new ObjectMapper().readTree(decodedJson);
-                if (node.has("clientId")) clientId = node.get("clientId").asText();
-                if (node.has("apiKey")) apiKey = node.get("apiKey").asText();
-                if (node.has("apiSecret")) apiSecret = node.get("apiSecret").asText();
+                if (node.has("clientId"))
+                    clientId = node.get("clientId").asText();
+                if (node.has("apiKey"))
+                    apiKey = node.get("apiKey").asText();
+                if (node.has("apiSecret"))
+                    apiSecret = node.get("apiSecret").asText();
             } catch (Exception e) {
-                System.err.println("Failed to parse clientToken. Kafka initialization may fail.");
+                log.error("Failed to parse clientToken. Kafka initialization may fail.", e);
             }
         }
         return new DecodedToken(clientId, apiKey, apiSecret);
@@ -189,40 +227,50 @@ public class Bootstrapper {
         final String apiSecret;
 
         DecodedToken(String clientId, String apiKey, String apiSecret) {
-            this.clientId  = clientId  != null ? clientId  : "";
-            this.apiKey    = apiKey    != null ? apiKey    : "";
+            this.clientId = clientId != null ? clientId : "";
+            this.apiKey = apiKey != null ? apiKey : "";
             this.apiSecret = apiSecret != null ? apiSecret : "";
         }
     }
 
     private void refreshToken() {
         String ref = tokenHolder.getRefreshToken();
-        if (ref == null || ref.isEmpty())
+        if (ref == null || ref.isEmpty()) {
+            log.debug("No refresh token available, skipping refresh.");
             return;
+        }
         try {
+            log.info("Refreshing client token for client ID: {}", clientId);
             TokenRefreshDto.Request req = new TokenRefreshDto.Request();
             req.setClientId(clientId);
             req.setRefreshToken(ref);
             TokenRefreshDto.Response resp = acpClient.refreshToken(req);
             tokenHolder.setToken(resp.getToken(), resp.getExpiresInMs());
-        } catch (Exception ignored) {
+            log.info("Client token refreshed successfully.");
+        } catch (Exception e) {
+            log.error("Failed to refresh client token: {}", e.getMessage());
         }
     }
 
     @PreDestroy
     public void shutdown() {
+        log.info("Shutting down Bootstrapper, stopping Dispatcher background worker...");
         if (dispatcher != null)
             dispatcher.stop();
         if (dispatcherThread != null) {
             try {
                 dispatcherThread.join(5_000);
+                log.debug("Dispatcher background worker thread stopped successfully.");
             } catch (InterruptedException e) {
+                log.warn("Interrupted while waiting for Dispatcher thread shutdown", e);
                 Thread.currentThread().interrupt();
             }
         }
         if (metricsManager != null && acpClient != null) {
+            log.info("Sending final client metrics to acp-server...");
             metricsManager.sendToAcpServer(acpClient, tokenHolder != null ? tokenHolder.getToken() : null);
         }
+        log.info("Bootstrapper shutdown sequence complete.");
     }
 
     public Buffer getBuffer() {

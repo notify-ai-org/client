@@ -217,10 +217,11 @@ class BootstrapperTest {
             ClientRegistrationDto.Response actual = acpClient.register(reg, null);
 
             if (actual != null && actual.getToken() != null) {
-                tokenHolder.setTokens(actual.getToken(), actual.getRefreshToken(), actual.getExpiresInMs());
+                tokenHolder.setTokens(actual.getToken(), actual.getRefreshToken(),
+                        actual.getKafkaHeaderToken(), actual.getExpiresInMs());
             }
 
-            verify(tokenHolder).setTokens("access-jwt", "refresh-jwt", 3_600_000L);
+            verify(tokenHolder).setTokens("access-jwt", "refresh-jwt", null, 3_600_000L);
         }
 
         @Test
@@ -236,7 +237,7 @@ class BootstrapperTest {
                 // intentionally swallowed — as done in Bootstrapper
             }
 
-            verify(tokenHolder, never()).setTokens(any(), any(), anyLong());
+            verify(tokenHolder, never()).setTokens(any(), any(), any(), anyLong());
         }
 
         @Test
@@ -249,10 +250,11 @@ class BootstrapperTest {
             ClientRegistrationDto.Response actual = acpClient.register(
                     new ClientRegistrationDto.Request(), null);
             if (actual != null && actual.getToken() != null) {
-                tokenHolder.setTokens(actual.getToken(), actual.getRefreshToken(), actual.getExpiresInMs());
+                tokenHolder.setTokens(actual.getToken(), actual.getRefreshToken(),
+                        actual.getKafkaHeaderToken(), actual.getExpiresInMs());
             }
 
-            verify(tokenHolder, never()).setTokens(any(), any(), anyLong());
+            verify(tokenHolder, never()).setTokens(any(), any(), any(), anyLong());
         }
 
         @Test

@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -36,7 +35,7 @@ public class Dispatcher implements Runnable {
 
     private final Buffer buffer;
     private final AcpServerClient acpClient;
-    private final Supplier<String> tokenSupplier;
+    private final TokenHolder tokenSupplier;
     private final Runnable onTokenExpired;
     private final EventListener eventListener;
     private volatile boolean running = true;
@@ -49,7 +48,7 @@ public class Dispatcher implements Runnable {
     private final KafkaProducer<String, EventCapture> producer;
 
     public Dispatcher(Buffer buffer, AcpServerClient acpClient,
-            Supplier<String> tokenSupplier, Runnable onTokenExpired,
+            TokenHolder tokenSupplier, Runnable onTokenExpired,
             KafkaConsumer<String, EventSchedule> consumer, KafkaProducer<String, EventCapture> producer,
             EventListener eventListener) {
         this.buffer = buffer;
@@ -83,6 +82,7 @@ public class Dispatcher implements Runnable {
     public void run() {
         List<Buffer.Record> batch = new ArrayList<>();
         List<EventCapture> eventBatch = new ArrayList<>();
+        log.info("Dispatcher run() started");
         spawnConsumer();
         while (running) {
             try {
@@ -91,20 +91,27 @@ public class Dispatcher implements Runnable {
                     Thread.sleep(100);
                     continue;
                 }
+                log.debug("Drained {} record(s) from buffer", n);
 
                 for (Buffer.Record r : batch) {
+                    log.debug("Processing buffer record of type: {}", r.getType());
                     switch (r.getType()) {
                         case VOCABULARY:
                             @SuppressWarnings("unchecked")
                             List<ClassModel> vocab = (List<ClassModel>) r.getPayload();
-                            postWithAuthRetry(() -> acpClient.postVocabulary(vocab, tokenSupplier.get()));
+                            log.debug("Posting {} vocabulary model(s) to acp-server", vocab.size());
+                            postWithAuthRetry(() -> acpClient.postVocabulary(vocab, tokenSupplier.getToken()));
+                            log.debug("Vocabulary post completed");
                             break;
                         case RULE:
                             @SuppressWarnings("unchecked")
                             Map<String, Object> rule = (Map<String, Object>) r.getPayload();
-                            postWithAuthRetry(() -> acpClient.postRule(rule, tokenSupplier.get()));
+                            log.debug("Posting rule '{}' to acp-server", rule.get("name"));
+                            postWithAuthRetry(() -> acpClient.postRule(rule, tokenSupplier.getToken()));
+                            log.debug("Rule post completed");
                             break;
                         case EVENT_CAPTURE:
+                            log.debug("Queuing EVENT_CAPTURE record into event batch");
                             eventBatch.add((EventCapture) r.getPayload());
                             break;
                     }
@@ -113,19 +120,71 @@ public class Dispatcher implements Runnable {
                 if (!eventBatch.isEmpty()) {
                     List<EventCapture> toSend = new ArrayList<>(eventBatch);
                     eventBatch.clear();
+                    log.debug("Preparing to send {} event capture(s) to Kafka topic '{}'", toSend.size(),
+                            PRODUCER_TOPIC);
                     for (EventCapture event : toSend) {
                         if (event.getSubjectResult() == null) {
-                            String tenantId = extractTenantId(tokenSupplier.get());
+                            String token = tokenSupplier.getHeaderToken();
+                            if (token == null || token.isBlank()) {
+                                log.debug("No Kafka header token available, falling back to access token");
+                                token = tokenSupplier.getToken();
+                            } else {
+                                log.debug("Using Kafka header token for Authorization header");
+                            }
+                            String tenantId = extractTenantId(token);
                             String key = tenantId + ":" + event.getEvent().getName();
                             Integer partition = (Math.abs(Objects.hashCode(tenantId)) % partitions);
-                            producer.send(new ProducerRecord<>(PRODUCER_TOPIC, partition, key, event));
-                        }
-                        for (Subject subject : event.getSubjectResult().getSubjects()) {
-                            String tenantId = extractTenantId(tokenSupplier.get());
-                            String key = tenantId + ":" + event.getEvent().getName() + ":"
-                                    + subject.getSubjectId();
-                            Integer partition = (Math.abs(Objects.hashCode(subject.getSubjectId())) % partitions);
-                            producer.send(new ProducerRecord<>(PRODUCER_TOPIC, partition, key, event));
+                            log.debug("Sending event '{}' to topic '{}', partition {}, key '{}'",
+                                    event.getEvent().getName(), PRODUCER_TOPIC, partition, key);
+                            ProducerRecord<String, EventCapture> record = new ProducerRecord<>(PRODUCER_TOPIC,
+                                    partition, key, event);
+                            if (token != null && !token.isBlank()) {
+                                String headerValue = token.startsWith("Bearer ") ? token : "Bearer " + token;
+                                record.headers().add(new org.apache.kafka.common.header.internals.RecordHeader(
+                                        "Authorization",
+                                        headerValue.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                                log.debug("Authorization header injected into Kafka record");
+                            } else {
+                                log.debug("No auth token available; sending Kafka record without Authorization header");
+                            }
+                            producer.send(record);
+                            log.debug("Kafka record sent for event '{}'", event.getEvent().getName());
+                        } else {
+                            int subjectCount = event.getSubjectResult().getSubjects().size();
+                            log.debug("Event '{}' has {} subject(s); sending per-subject records",
+                                    event.getEvent().getName(), subjectCount);
+                            for (Subject subject : event.getSubjectResult().getSubjects()) {
+                                String token = tokenSupplier.getHeaderToken();
+                                if (token == null || token.isBlank()) {
+                                    log.debug("No Kafka header token for subject '{}', falling back to access token",
+                                            subject.getSubjectId());
+                                    token = tokenSupplier.getToken();
+                                } else {
+                                    log.debug("Using Kafka header token for subject '{}'", subject.getSubjectId());
+                                }
+                                String tenantId = extractTenantId(token);
+                                String key = tenantId + ":" + event.getEvent().getName() + ":"
+                                        + subject.getSubjectId();
+                                Integer partition = (Math.abs(Objects.hashCode(subject.getSubjectId())) % partitions);
+                                log.debug("Sending event '{}' for subject '{}' to topic '{}', partition {}, key '{}'",
+                                        event.getEvent().getName(), subject.getSubjectId(), PRODUCER_TOPIC, partition,
+                                        key);
+                                ProducerRecord<String, EventCapture> record = new ProducerRecord<>(PRODUCER_TOPIC,
+                                        partition, key, event);
+                                if (token != null && !token.isBlank()) {
+                                    String headerValue = token.startsWith("Bearer ") ? token : "Bearer " + token;
+                                    record.headers().add(new org.apache.kafka.common.header.internals.RecordHeader(
+                                            "Authorization",
+                                            headerValue.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+                                    log.debug("Authorization header injected for subject '{}'", subject.getSubjectId());
+                                } else {
+                                    log.debug("No auth token for subject '{}'; sending without Authorization header",
+                                            subject.getSubjectId());
+                                }
+                                producer.send(record);
+                                log.debug("Kafka record sent for event '{}', subject '{}'",
+                                        event.getEvent().getName(), subject.getSubjectId());
+                            }
                         }
                         Thread.sleep(100);
                     }
@@ -133,27 +192,31 @@ public class Dispatcher implements Runnable {
                     // tokenSupplier.get()));
                 }
 
+                log.debug("Batch of {} record(s) fully processed; marking buffer flushed", batch.size());
                 buffer.markFlushed();
                 batch.clear();
             } catch (InterruptedException e) {
+                log.warn("Dispatcher run() interrupted; shutting down");
                 Thread.currentThread().interrupt();
                 running = false;
                 break;
             } catch (Exception e) {
-                // log and continue
-                e.printStackTrace();
+                log.error("Unhandled exception in Dispatcher run() loop; continuing", e);
             }
         }
     }
 
     private String extractTenantId(String token) {
-        if (token == null || token.isEmpty()) return "unknown-tenant";
+        if (token == null || token.isEmpty())
+            return "unknown-tenant";
         try {
             String[] parts = token.split("\\.");
             if (parts.length > 1) {
                 String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]));
-                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper().readTree(payload);
-                if (node.has("tenantId")) return node.get("tenantId").asText();
+                com.fasterxml.jackson.databind.JsonNode node = new com.fasterxml.jackson.databind.ObjectMapper()
+                        .readTree(payload);
+                if (node.has("tenantId"))
+                    return node.get("tenantId").asText();
             }
         } catch (Exception e) {
             log.warn("Failed to extract tenantId from token", e);

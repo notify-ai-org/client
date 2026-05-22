@@ -10,12 +10,11 @@ public final class PushSubject extends Subject {
     private final String deviceToken;
 
     public PushSubject(
-            String subjectId,
             String deviceToken,
             String correlationId,
             Map<String, String> attributes) {
 
-        super(subjectId, Channel.PUSH, correlationId, attributes);
+        super(deviceToken, Channel.PUSH, correlationId, attributes);
         this.deviceToken = Objects.requireNonNull(deviceToken, "deviceToken");
     }
 

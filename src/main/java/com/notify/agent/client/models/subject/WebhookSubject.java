@@ -10,12 +10,11 @@ public final class WebhookSubject extends Subject {
     private final String url;
 
     public WebhookSubject(
-            String subjectId,
             String url,
             String correlationId,
             Map<String, String> attributes) {
 
-        super(subjectId, Channel.WEBHOOK, correlationId, attributes);
+        super(url, Channel.WEBHOOK, correlationId, attributes);
         this.url = Objects.requireNonNull(url, "url");
     }
 

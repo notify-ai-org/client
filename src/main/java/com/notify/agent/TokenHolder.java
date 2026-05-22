@@ -18,6 +18,7 @@ public class TokenHolder implements TokenStore {
 
     private final AtomicReference<String> token = new AtomicReference<>(null);
     private final AtomicReference<String> refreshToken = new AtomicReference<>(null);
+    private final AtomicReference<String> headerToken = new AtomicReference<>(null);
     private volatile long expiresAtMs = 0;
 
     // -------------------------------------------------------------------------
@@ -32,6 +33,10 @@ public class TokenHolder implements TokenStore {
         return refreshToken.get();
     }
 
+    public String getHeaderToken() {
+        return refreshToken.get();
+    }
+
     public boolean isExpired() {
         return System.currentTimeMillis() >= expiresAtMs;
     }
@@ -40,10 +45,12 @@ public class TokenHolder implements TokenStore {
         return token.get() != null && !token.get().isEmpty();
     }
 
-    public void setTokens(String accessToken, String refresh, long expiresInMs) {
+    public void setTokens(String accessToken, String refresh, String header,
+            long expiresInMs) {
         token.set(accessToken);
         if (refresh != null)
             refreshToken.set(refresh);
+        headerToken.set(header);
         this.expiresAtMs = expiresInMs > 0
                 ? System.currentTimeMillis() + expiresInMs
                 : Long.MAX_VALUE;
@@ -67,8 +74,9 @@ public class TokenHolder implements TokenStore {
      */
     @Override
     public void storeTokens(String userId, String accessToken, String refreshToken,
+            String headerToken,
             long accessTtlSeconds, long refreshTtlSeconds) {
-        setTokens(accessToken, refreshToken, accessTtlSeconds * 1000);
+        setTokens(accessToken, refreshToken, headerToken, accessTtlSeconds * 1000);
     }
 
     /**

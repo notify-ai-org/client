@@ -10,12 +10,11 @@ public final class SmsSubject extends Subject {
     private final String phoneNumber;
 
     public SmsSubject(
-            String subjectId,
             String phoneNumber,
             String correlationId,
             Map<String, String> attributes) {
 
-        super(subjectId, Channel.SMS, correlationId, attributes);
+        super(phoneNumber, Channel.SMS, correlationId, attributes);
         this.phoneNumber = Objects.requireNonNull(phoneNumber, "phoneNumber");
     }
 
