@@ -47,6 +47,8 @@ public class ClientRegistrationDto {
     public static class Response {
         private String clientId;
         private String token;
+        private String apiKey;
+        private String apiSecret;
         private String refreshToken;
         private String kafkaHeaderToken;
         private long expiresInMs;
@@ -57,6 +59,34 @@ public class ClientRegistrationDto {
 
         public void setClientId(String clientId) {
             this.clientId = clientId;
+        }
+
+        /**
+         * @return the apiKey
+         */
+        public String getApiKey() {
+            return apiKey;
+        }
+
+        /**
+         * @param apiKey the apiKey to set
+         */
+        public void setApiKey(String apiKey) {
+            this.apiKey = apiKey;
+        }
+
+        /**
+         * @return the apiSecret
+         */
+        public String getApiSecret() {
+            return apiSecret;
+        }
+
+        /**
+         * @param apiSecret the apiSecret to set
+         */
+        public void setApiSecret(String apiSecret) {
+            this.apiSecret = apiSecret;
         }
 
         public String getToken() {

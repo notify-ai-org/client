@@ -89,19 +89,36 @@ public class Bootstrapper {
         annotationProcessor.process();
         invokeManager.buildFrom(annotationProcessor);
 
-        String rawToken = props.getClientToken();
-        log.debug("Decoding client credentials from token properties");
-        DecodedToken decoded = decodeToken(rawToken, props.getClientId());
-        this.clientId = decoded.clientId;
-        String apiKey = decoded.apiKey;
-        String apiSecret = decoded.apiSecret;
-        log.info("Decoded client credentials. Client ID: {}", clientId);
+        String clientId = props.getClientToken();
+
+        ClientRegistrationDto.Response resp;
+
+        try {
+            log.info("Registering client with acp-server at: {}", props.getAcpServerUrl());
+            ClientRegistrationDto.Request reg = new ClientRegistrationDto.Request();
+            reg.setClientId(clientId);
+            reg.setApplicationName(props.getApplicationName());
+            reg.setBasePackage(props.getBasePackage());
+            resp = acpClient.register(reg, null);
+            if (resp != null && resp.getToken() != null) {
+                tokenHolder.setTokens(resp.getToken(), resp.getRefreshToken(), resp.getKafkaHeaderToken(),
+                        resp.getExpiresInMs());
+                log.info("Client registration successful. Access token received and saved.");
+            } else {
+                log.warn("Client registration response did not contain tokens.");
+            }
+        } catch (Exception e) {
+            log.warn("Client registration failed (continuing without authentication): {}", e.getMessage());
+            return;
+        }
 
         // Initialize Kafka Producer and Consumer dynamically
         log.info("Initializing dynamic Kafka client properties...");
         Map<String, Object> producerProps = kafkaConfig.producerProperties();
         Map<String, Object> consumerProps = kafkaConfig.consumerProperties();
 
+        String apiKey = resp.getApiKey();
+        String apiSecret = resp.getApiSecret();
         if (!apiKey.isEmpty() && !apiSecret.isEmpty()) {
             log.debug("Configuring Kafka SASL authentication");
             String jaasConfig = String.format(
@@ -131,26 +148,6 @@ public class Bootstrapper {
         this.producer = new KafkaProducer<>(producerProps);
         this.consumer = new KafkaConsumer<>(consumerProps);
         log.info("Kafka clients instantiated successfully.");
-
-        try {
-            log.info("Registering client with acp-server at: {}", props.getAcpServerUrl());
-            ClientRegistrationDto.Request reg = new ClientRegistrationDto.Request();
-            reg.setClientId(clientId);
-            reg.setRawToken(rawToken);
-            reg.setApplicationName(props.getApplicationName());
-            reg.setBasePackage(props.getBasePackage());
-            ClientRegistrationDto.Response resp = acpClient.register(reg, null);
-            if (resp != null && resp.getToken() != null) {
-                tokenHolder.setTokens(resp.getToken(), resp.getRefreshToken(), resp.getKafkaHeaderToken(),
-                        resp.getExpiresInMs());
-                log.info("Client registration successful. Access token received and saved.");
-            } else {
-                log.warn("Client registration response did not contain tokens.");
-            }
-        } catch (Exception e) {
-            log.warn("Client registration failed (continuing without authentication): {}", e.getMessage());
-            return;
-        }
 
         List<EventMetadata> events = annotationProcessor.getEvents();
         log.info("Found {} scanned event(s) to register.", events.size());
