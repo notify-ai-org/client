@@ -9,6 +9,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import com.notify.agent.annotations.EnableNotify;
+import com.notify.agent.service.JwtService;
 
 /**
  * Spring Boot auto-configuration for the Notification Engine Client SDK.
@@ -82,6 +83,7 @@ public class NotifyAutoConfiguration {
             AnnotationProcessor annotationProcessor,
             VocabularyManager vocabularyManager,
             Buffer buffer,
+            JwtService jwtService,
             AcpServerClient acpServerClient,
             TokenHolder tokenHolder,
             InvokeManager invokeManager,
@@ -89,7 +91,7 @@ public class NotifyAutoConfiguration {
             MetricsManager metricsManager,
             EventListener eventListener) {
         return new Bootstrapper(props, annotationProcessor, vocabularyManager, buffer,
-                acpServerClient, tokenHolder, invokeManager, kafkaConfig, metricsManager, eventListener);
+                acpServerClient, tokenHolder, invokeManager, kafkaConfig, jwtService, metricsManager, eventListener);
     }
 
     @Bean

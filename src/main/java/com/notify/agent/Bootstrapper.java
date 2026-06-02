@@ -1,6 +1,7 @@
 package com.notify.agent;
 
 import com.notify.agent.config.NotifyProperties;
+import com.notify.agent.service.JwtService;
 import com.notify.agent.client.models.ClassModel;
 import com.notify.agent.client.models.ClientRegistrationDto;
 import com.notify.agent.client.models.EventCapture;
@@ -48,6 +49,7 @@ public class Bootstrapper {
     private final AcpServerClient acpClient;
     private final TokenHolder tokenHolder;
     private final InvokeManager invokeManager;
+    private final JwtService jwtService;
     private final MetricsManager metricsManager;
     private final EventListener eventListener;
     private final KafkaConfig kafkaConfig;
@@ -67,6 +69,7 @@ public class Bootstrapper {
             TokenHolder tokenHolder,
             InvokeManager invokeManager,
             KafkaConfig kafkaConfig,
+            JwtService jwtService,
             MetricsManager metricsManager, EventListener eventListener) {
         this.props = props;
         this.annotationProcessor = annotationProcessor;
@@ -78,6 +81,7 @@ public class Bootstrapper {
         this.metricsManager = metricsManager;
         this.eventListener = eventListener;
         this.kafkaConfig = kafkaConfig;
+        this.jwtService = jwtService;
     }
 
     /**
@@ -180,8 +184,8 @@ public class Bootstrapper {
         }
 
         log.info("Initializing Dispatcher with background worker thread.");
-        dispatcher = new Dispatcher(buffer, acpClient, tokenHolder, this::refreshToken,
-                consumer, producer, eventListener);
+        dispatcher = new Dispatcher(buffer, acpClient, jwtService, tokenHolder,
+                this::refreshToken, consumer, producer, eventListener);
         dispatcherThread = new Thread(dispatcher, "notify-dispatcher");
         dispatcherThread.setDaemon(false);
         dispatcherThread.start();

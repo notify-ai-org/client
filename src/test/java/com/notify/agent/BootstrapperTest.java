@@ -8,6 +8,8 @@ import com.notify.agent.client.models.metadata.EventMetadata;
 import com.notify.agent.client.models.metadata.RuleMetadata;
 import com.notify.agent.config.KafkaConfig;
 import com.notify.agent.config.NotifyProperties;
+import com.notify.agent.service.JwtService;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -30,19 +32,19 @@ import static org.mockito.Mockito.*;
  * Unit tests for {@link Bootstrapper}.
  *
  * Testing strategy:
- *  - Token-decoding logic is tested directly via the package-private
- *    {@code decodeToken()} method — no Kafka or Spring context needed.
- *  - Registration and buffer-population tests spy on a partially-mocked
- *    Bootstrapper to short-circuit the Kafka/Dispatcher code paths that
- *    would block indefinitely or require a real broker.
- *  - Shutdown tests verify @PreDestroy behaviour without any bootstrap.
+ * - Token-decoding logic is tested directly via the package-private
+ * {@code decodeToken()} method — no Kafka or Spring context needed.
+ * - Registration and buffer-population tests spy on a partially-mocked
+ * Bootstrapper to short-circuit the Kafka/Dispatcher code paths that
+ * would block indefinitely or require a real broker.
+ * - Shutdown tests verify @PreDestroy behaviour without any bootstrap.
  *
  * Test groups:
- *  1. Token decoding  — valid token, malformed token, null/empty token.
- *  2. Client registration — success stores token; failure is swallowed.
- *  3. Buffer population   — events, vocabulary, rules enqueued correctly.
- *  4. Shutdown            — metrics sent; no crash before bootstrap.
- *  5. Accessors           — getters return injected collaborators.
+ * 1. Token decoding — valid token, malformed token, null/empty token.
+ * 2. Client registration — success stores token; failure is swallowed.
+ * 3. Buffer population — events, vocabulary, rules enqueued correctly.
+ * 4. Shutdown — metrics sent; no crash before bootstrap.
+ * 5. Accessors — getters return injected collaborators.
  */
 @ExtendWith(MockitoExtension.class)
 class BootstrapperTest {
@@ -51,16 +53,28 @@ class BootstrapperTest {
     // Shared mocks
     // -------------------------------------------------------------------------
 
-    @Mock private NotifyProperties     props;
-    @Mock private AnnotationProcessor  annotationProcessor;
-    @Mock private VocabularyManager    vocabularyManager;
-    @Mock private Buffer               buffer;
-    @Mock private AcpServerClient      acpClient;
-    @Mock private TokenHolder          tokenHolder;
-    @Mock private InvokeManager        invokeManager;
-    @Mock private MetricsManager       metricsManager;
-    @Mock private EventListener        eventListener;
-    @Mock private KafkaConfig          kafkaConfig;
+    @Mock
+    private NotifyProperties props;
+    @Mock
+    private AnnotationProcessor annotationProcessor;
+    @Mock
+    private VocabularyManager vocabularyManager;
+    @Mock
+    private Buffer buffer;
+    @Mock
+    private JwtService jwtService;
+    @Mock
+    private AcpServerClient acpClient;
+    @Mock
+    private TokenHolder tokenHolder;
+    @Mock
+    private InvokeManager invokeManager;
+    @Mock
+    private MetricsManager metricsManager;
+    @Mock
+    private EventListener eventListener;
+    @Mock
+    private KafkaConfig kafkaConfig;
 
     // -------------------------------------------------------------------------
     // Helpers
@@ -68,7 +82,7 @@ class BootstrapperTest {
 
     private Bootstrapper bootstrapper() {
         return new Bootstrapper(props, annotationProcessor, vocabularyManager, buffer,
-                acpClient, tokenHolder, invokeManager, kafkaConfig, metricsManager, eventListener);
+                acpClient, tokenHolder, invokeManager, kafkaConfig, jwtService, metricsManager, eventListener);
     }
 
     private static String makeToken(String clientId, String apiKey, String apiSecret) throws Exception {
@@ -191,8 +205,8 @@ class BootstrapperTest {
 
     // =========================================================================
     // 2. Client Registration
-    //    We test the registration logic by calling the bootstrap-related steps
-    //    directly on mocks without the Kafka/Dispatcher code path.
+    // We test the registration logic by calling the bootstrap-related steps
+    // directly on mocks without the Kafka/Dispatcher code path.
     // =========================================================================
 
     @Nested
@@ -272,8 +286,8 @@ class BootstrapperTest {
             reg.setBasePackage(props.getBasePackage());
             acpClient.register(reg, null);
 
-            ArgumentCaptor<ClientRegistrationDto.Request> captor =
-                    ArgumentCaptor.forClass(ClientRegistrationDto.Request.class);
+            ArgumentCaptor<ClientRegistrationDto.Request> captor = ArgumentCaptor
+                    .forClass(ClientRegistrationDto.Request.class);
             verify(acpClient).register(captor.capture(), any());
             assertThat(captor.getValue().getApplicationName()).isEqualTo("my-service");
             assertThat(captor.getValue().getBasePackage()).isEqualTo("com.example");
@@ -313,16 +327,15 @@ class BootstrapperTest {
 
             // Simulate the bootstrap enqueue loop directly
             annotationProcessor.getEvents().forEach(m -> {
-                com.notify.agent.client.models.EventCapture dto =
-                        new com.notify.agent.client.models.EventCapture();
+                com.notify.agent.client.models.EventCapture dto = new com.notify.agent.client.models.EventCapture();
                 dto.setEvent(m.getEvent());
                 dto.getEvent().setEventType("REGISTER");
                 dto.setServiceName(m.getDeclaringClass().getSimpleName());
                 buffer.addEventCapture(dto);
             });
 
-            ArgumentCaptor<com.notify.agent.client.models.EventCapture> captor =
-                    ArgumentCaptor.forClass(com.notify.agent.client.models.EventCapture.class);
+            ArgumentCaptor<com.notify.agent.client.models.EventCapture> captor = ArgumentCaptor
+                    .forClass(com.notify.agent.client.models.EventCapture.class);
             verify(buffer).addEventCapture(captor.capture());
             assertThat(captor.getValue().getEvent().getName()).isEqualTo("OrderPlaced");
             assertThat(captor.getValue().getEvent().getEventType()).isEqualTo("REGISTER");
@@ -335,7 +348,8 @@ class BootstrapperTest {
             when(vocabularyManager.toClassModelDtoList()).thenReturn(List.of(classModel));
 
             List<ClassModel> vocab = vocabularyManager.toClassModelDtoList();
-            if (!vocab.isEmpty()) buffer.addVocabulary(vocab);
+            if (!vocab.isEmpty())
+                buffer.addVocabulary(vocab);
 
             verify(buffer).addVocabulary(List.of(classModel));
         }
@@ -346,7 +360,8 @@ class BootstrapperTest {
             when(vocabularyManager.toClassModelDtoList()).thenReturn(Collections.emptyList());
 
             List<ClassModel> vocab = vocabularyManager.toClassModelDtoList();
-            if (!vocab.isEmpty()) buffer.addVocabulary(vocab);
+            if (!vocab.isEmpty())
+                buffer.addVocabulary(vocab);
 
             verify(buffer, never()).addVocabulary(any());
         }

@@ -24,6 +24,9 @@ import com.notify.agent.client.models.ClassModel;
 import com.notify.agent.client.models.EventCapture;
 import com.notify.agent.client.models.EventSchedule;
 import com.notify.agent.client.models.subject.Subject;
+import com.notify.agent.service.JwtService;
+
+import io.jsonwebtoken.Claims;
 
 /**
  * Thread that pulls records from the Buffer and sends them to acp-server (or
@@ -36,6 +39,7 @@ public class Dispatcher implements Runnable {
     private final Buffer buffer;
     private final AcpServerClient acpClient;
     private final TokenHolder tokenSupplier;
+    private final JwtService jwtService;
     private final Runnable onTokenExpired;
     private final EventListener eventListener;
     private volatile boolean running = true;
@@ -48,6 +52,7 @@ public class Dispatcher implements Runnable {
     private final KafkaProducer<String, EventCapture> producer;
 
     public Dispatcher(Buffer buffer, AcpServerClient acpClient,
+            JwtService service,
             TokenHolder tokenSupplier, Runnable onTokenExpired,
             KafkaConsumer<String, EventSchedule> consumer, KafkaProducer<String, EventCapture> producer,
             EventListener eventListener) {
@@ -59,6 +64,7 @@ public class Dispatcher implements Runnable {
         this.consumer = consumer;
         this.producer = producer;
         this.eventListener = eventListener;
+        this.jwtService = service;
         this.partitions = producer.partitionsFor(PRODUCER_TOPIC).size();
     }
 
@@ -122,6 +128,11 @@ public class Dispatcher implements Runnable {
                     eventBatch.clear();
                     log.debug("Preparing to send {} event capture(s) to Kafka topic '{}'", toSend.size(),
                             PRODUCER_TOPIC);
+                    Claims claims = jwtService.extractAllClaims(tokenSupplier.getToken());
+                    if (claims.get("profile").equals("basic")) {
+                        postWithAuthRetry(() -> acpClient.postEventCaptures(toSend, tokenSupplier.getToken()));
+                        continue;
+                    }
                     for (EventCapture event : toSend) {
                         if (event.getSubjectResult() == null) {
                             String token = tokenSupplier.getHeaderToken();
@@ -188,8 +199,6 @@ public class Dispatcher implements Runnable {
                         }
                         Thread.sleep(100);
                     }
-                    // postWithAuthRetry(() -> acpClient.postEventCaptures(toSend,
-                    // tokenSupplier.get()));
                 }
 
                 log.debug("Batch of {} record(s) fully processed; marking buffer flushed", batch.size());
