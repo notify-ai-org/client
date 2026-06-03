@@ -1,25 +1,37 @@
-# Notification Engine Client SDK
+<p align="center">
+  <span style="font-size: 50px;">⚡</span>
+</p>
+<h1 align="center" style="border-bottom: none;">
+  <span style="background: linear-gradient(135deg, #eab308 0%, #f97316 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800;">Notify.ai</span>
+</h1>
+<p align="center"><b>Client SDK</b> — Lightweight Java Client SDK for Event Interception and Metadata Transmission</p>
 
-Client SDK that attaches to a Spring Boot application to send vocabulary, rules, and event-annotated metadata to **acp-server** for agents, and to fire events for `EventProcessorAgent` before they reach the notification engine.
+---
 
-## Enable the SDK
+## 📖 Overview
 
-1. Add the client and annotations dependencies:
+The **Notify.ai Client SDK** is a lightweight Java library that integrates into Spring Boot applications. Using Aspect-Oriented Programming (AOP) and custom annotations, it intercepts methods, packages parameters as semantic event payloads, and transmits them to the control plane (`acp-server`).
+
+## 🚀 Integration Guide
+
+### 1. Add Dependencies
+Add the client SDK and annotations dependencies to your application's `pom.xml`:
 
 ```xml
 <dependency>
   <groupId>com.notify</groupId>
   <artifactId>vocabulary-agent-client</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 <dependency>
   <groupId>com.notify</groupId>
   <artifactId>vocabulary-agent-annotations</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>1.0.0</version>
 </dependency>
 ```
 
-2. Annotate a `@Configuration` class with `@EnableNotify` and set the scan package:
+### 2. Enable the SDK
+Annotate a configuration class with `@EnableNotify` and specify the packages to scan:
 
 ```java
 @Configuration
@@ -27,7 +39,8 @@ Client SDK that attaches to a Spring Boot application to send vocabulary, rules,
 public class NotifyConfig {}
 ```
 
-3. Configure in `application.yml`:
+### 3. Application Properties
+Configure connection parameters in your `application.yml` or `application.properties`:
 
 ```yaml
 notify:
@@ -36,37 +49,48 @@ notify:
   application-name: my-service
   buffer-batch-size: 100
   buffer-flush-timeout-ms: 5000
-  # Optional: Kafka for scheduled events from acp-server
+  # Optional: Kafka integration for scheduled events
   kafka-enabled: false
   kafka-topic: notify-scheduled-events
   kafka-group: notify-client-group
 ```
 
-## Annotations
+## 🛠️ Key Annotations
 
 | Annotation | Level | Purpose |
 |------------|-------|---------|
-| `@EnableNotify` | Class | Enables the SDK; use `basePackage` to scan. |
-| `@Event` | Method | Marks a method as an event; intercepted and sent to acp-server. |
-| `@Rule` | Method | Rule executor for an event (`name`, `description`, `event`). |
-| `@Callback` | Method | Before/after hooks for an event (`event`, `when=BEFORE\|AFTER`). |
-| `@Vocabulary` | Field | Vocabulary attribute on `@Model` classes (`name`, `description`). |
-| `@Model` | Class | All fields are vocabulary attributes. |
-| `@VocabularySupplier` | Method | Supplies event payload for an event (`event`). |
-| `@SubjectSupplier` | Method | Supplies list of subjects for an event (`event`). |
+| `@EnableNotify` | Class | Enables the SDK; specifies packages to scan. |
+| `@Event` | Method | Intercepts execution and forwards payloads to the control plane. |
+| `@Rule` | Method | Executes vocabulary rules before/after events. |
+| `@Callback` | Method | BEFORE/AFTER hooks running custom logic surrounding event capture. |
+| `@Vocabulary` | Field | Declares a field as a vocabulary attribute on model classes. |
+| `@Model` | Class | Exposes all fields of the class as vocabulary attributes. |
+| `@VocabularySupplier`| Method | Supplies additional context/payload mappings. |
+| `@SubjectSupplier` | Method | Maps recipients/subjects for notifications. |
 
-## Flow
+## 🚀 Local Compilation
 
-1. **Bootstrap**: `Bootstrapper` runs `AnnotationProcessor` and `VocabularyManager`, registers the client with acp-server (if `/api/client/register` exists), obtains a token, enqueues vocabulary and rules into `Buffer`, and starts the `Dispatcher` thread.
-2. **Events**: `EventListener` (AOP) intercepts `@Event` methods, runs before/after callbacks via `InvokeManager`, builds `EventCaptureDto`, and adds it to `Buffer`. The `Dispatcher` batches and POSTs to acp-server `/api/event`.
-3. **Scheduled events**: If `notify.kafka.enabled=true` and Kafka is configured, `NotifyKafkaListener` consumes the configured topic and enqueues `EventCaptureDto` into `Buffer`.
+As a client SDK library, this module cannot be run on its own. It is compiled and installed locally, then imported by your applications.
 
-## acp-server endpoints used
+To compile and package the client SDK locally:
+```bash
+mvn clean install -pl client
+```
 
-- `POST /api/vocabulary` — `List<ClassModel>` (vocabulary from `@Model` / `@Vocabulary`)
-- `POST /api/vocabulary/rules/process` — rule map: `eventName`, `ruleName`, `ruleDescription`, `payload`
-- `POST /api/event` — `List<EventCapture>` (event captures)
-- `POST /api/client/register` — optional; client registration and token
-- `POST /api/auth/token/refresh` — optional; token refresh
+For examples of how this SDK is utilized in active projects, refer to the [examples/ecommerce-app](file:///Users/rohannaik/Desktop/notify/examples/ecommerce-app/README.md) and [examples/banking-app](file:///Users/rohannaik/Desktop/notify/examples/banking-app/README.md) directories.
 
-If `/api/client/register` or `/api/auth/token/refresh` are not implemented, the SDK continues without auth.
+---
+
+## 👥 Developer Contact & Contributing
+
+For questions, issues, or support regarding this module:
+- **Lead Developer**: Rohan Naik ([rohan.naik07@github](https://github.com/rohan-naik07))
+- **Email**: dev-support@notify.ai
+
+### Contributing
+
+We welcome contributions! Please follow these guidelines:
+1. **Fork** the repository and create your branch from `master`.
+2. Ensure your changes compile and all tests pass.
+3. Follow the project's Java coding standards and naming conventions.
+4. Submit a **Pull Request** with a detailed description of your changes.
