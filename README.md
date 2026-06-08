@@ -1,6 +1,4 @@
-<p align="center">
-  <span style="font-size: 50px;">⚡</span>
-</p>
+
 <h1 align="center" style="border-bottom: none;">
   <span style="font-weight: 800;">Notify<span style="background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">.ai</span></span>
 </h1>
