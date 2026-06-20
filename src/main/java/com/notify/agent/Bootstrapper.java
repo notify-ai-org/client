@@ -116,42 +116,11 @@ public class Bootstrapper {
             return;
         }
 
-        // Initialize Kafka Producer and Consumer dynamically
-        log.info("Initializing dynamic Kafka client properties...");
-        Map<String, Object> producerProps = kafkaConfig.producerProperties();
-        Map<String, Object> consumerProps = kafkaConfig.consumerProperties();
-
-        String apiKey = resp.getApiKey();
-        String apiSecret = resp.getApiSecret();
-        if (!apiKey.isEmpty() && !apiSecret.isEmpty()) {
-            log.debug("Configuring Kafka SASL authentication");
-            String jaasConfig = String.format(
-                    "org.apache.kafka.common.security.plain.PlainLoginModule required username='%s' password='%s';",
-                    apiKey, apiSecret);
-            producerProps.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfig);
-            consumerProps.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfig);
-            producerProps.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_SSL");
-            consumerProps.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_SSL");
-            producerProps.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
-            consumerProps.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
+        if (props.isKafkaEnabled()) {
+            initializeKafkaClients(resp, clientId);
         } else {
-            log.debug("No SASL credentials found in token; initializing without SASL.");
+            log.info("Kafka is disabled for this client; event captures will use HTTP transport.");
         }
-
-        if (clientId != null && !clientId.isEmpty()) {
-            producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, clientId + "-producer");
-            consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId + "-consumer");
-        }
-
-        // Configure type-specific value serializer and deserializer
-        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, EventCaptureKafkaSerializer.class.getName());
-        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
-                EventScheduleKafkaDeserializer.class.getName());
-
-        log.debug("Instantiating Kafka producer and consumer...");
-        this.producer = new KafkaProducer<>(producerProps);
-        this.consumer = new KafkaConsumer<>(consumerProps);
-        log.info("Kafka clients instantiated successfully.");
 
         List<EventMetadata> events = annotationProcessor.getEvents();
         log.info("Found {} scanned event(s) to register.", events.size());
@@ -190,6 +159,43 @@ public class Bootstrapper {
         dispatcherThread.setDaemon(false);
         dispatcherThread.start();
         log.info("Dispatcher background thread started successfully.");
+    }
+
+    private void initializeKafkaClients(ClientRegistrationDto.Response resp, String clientId) {
+        log.info("Initializing dynamic Kafka client properties...");
+        Map<String, Object> producerProps = kafkaConfig.producerProperties();
+        Map<String, Object> consumerProps = kafkaConfig.consumerProperties();
+
+        String apiKey = resp.getApiKey();
+        String apiSecret = resp.getApiSecret();
+        if (apiKey != null && !apiKey.isEmpty() && apiSecret != null && !apiSecret.isEmpty()) {
+            log.debug("Configuring Kafka SASL authentication");
+            String jaasConfig = String.format(
+                    "org.apache.kafka.common.security.plain.PlainLoginModule required username='%s' password='%s';",
+                    apiKey, apiSecret);
+            producerProps.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfig);
+            consumerProps.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfig);
+            producerProps.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_SSL");
+            consumerProps.put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "SASL_SSL");
+            producerProps.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
+            consumerProps.put(SaslConfigs.SASL_MECHANISM, "PLAIN");
+        } else {
+            log.debug("No SASL credentials found in token; initializing without SASL.");
+        }
+
+        if (clientId != null && !clientId.isEmpty()) {
+            producerProps.put(ProducerConfig.CLIENT_ID_CONFIG, clientId + "-producer");
+            consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, clientId + "-consumer");
+        }
+
+        producerProps.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, EventCaptureKafkaSerializer.class.getName());
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+                EventScheduleKafkaDeserializer.class.getName());
+
+        log.debug("Instantiating Kafka producer and consumer...");
+        this.producer = new KafkaProducer<>(producerProps);
+        this.consumer = new KafkaConsumer<>(consumerProps);
+        log.info("Kafka clients instantiated successfully.");
     }
 
     /**

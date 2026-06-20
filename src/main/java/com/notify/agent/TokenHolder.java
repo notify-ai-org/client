@@ -34,7 +34,7 @@ public class TokenHolder implements TokenStore {
     }
 
     public String getHeaderToken() {
-        return refreshToken.get();
+        return headerToken.get();
     }
 
     public boolean isExpired() {

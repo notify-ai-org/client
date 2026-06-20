@@ -65,7 +65,7 @@ public class Dispatcher implements Runnable {
         this.producer = producer;
         this.eventListener = eventListener;
         this.jwtService = service;
-        this.partitions = producer.partitionsFor(PRODUCER_TOPIC).size();
+        this.partitions = producer != null ? producer.partitionsFor(PRODUCER_TOPIC).size() : 0;
     }
 
     private Thread consumerThread;
@@ -73,15 +73,19 @@ public class Dispatcher implements Runnable {
     public void stop() {
         running = false;
         if (consumerThread != null && consumerThread.isAlive()) {
-            consumer.wakeup(); // Interrupt the consumer poll
+            if (consumer != null) {
+                consumer.wakeup(); // Interrupt the consumer poll
+            }
             try {
                 consumerThread.join(5000);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
-        producer.flush();
-        producer.close();
+        if (producer != null) {
+            producer.flush();
+            producer.close();
+        }
     }
 
     @Override
@@ -128,8 +132,10 @@ public class Dispatcher implements Runnable {
                     eventBatch.clear();
                     log.debug("Preparing to send {} event capture(s) to Kafka topic '{}'", toSend.size(),
                             PRODUCER_TOPIC);
-                    Claims claims = jwtService.extractAllClaims(tokenSupplier.getToken());
-                    if (claims.get("profile").equals("basic")) {
+                    Claims claims = tokenSupplier.getToken() != null
+                            ? jwtService.extractAllClaims(tokenSupplier.getToken())
+                            : null;
+                    if (producer == null || claims == null || "basic".equals(claims.get("profile"))) {
                         postWithAuthRetry(() -> acpClient.postEventCaptures(toSend, tokenSupplier.getToken()));
                         continue;
                     }
@@ -234,6 +240,11 @@ public class Dispatcher implements Runnable {
     }
 
     private void spawnConsumer() {
+        if (consumer == null) {
+            log.info("Kafka consumer disabled; scheduled event listener will not poll Kafka.");
+            return;
+        }
+
         // Subscribe to the topic and let Kafka's assignor handle partition distribution
         consumer.subscribe(Collections.singletonList(CONSUMER_TOPIC), new ConsumerRebalanceListener() {
             @Override

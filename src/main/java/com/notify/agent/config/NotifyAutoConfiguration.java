@@ -9,6 +9,9 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import com.notify.agent.annotations.EnableNotify;
+import com.notify.agent.auth.NoOpTokenValidator;
+import com.notify.agent.interfaces.TokenStore;
+import com.notify.agent.interfaces.TokenValidator;
 import com.notify.agent.service.JwtService;
 
 /**
@@ -63,6 +66,25 @@ public class NotifyAutoConfiguration {
     @ConditionalOnMissingBean
     public TokenHolder tokenHolder() {
         return new TokenHolder();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(TokenStore.class)
+    public TokenStore tokenStore(TokenHolder tokenHolder) {
+        return tokenHolder;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(TokenValidator.class)
+    public TokenValidator tokenValidator() {
+        return new NoOpTokenValidator();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public JwtService jwtService(TokenStore tokenStore, TokenValidator tokenValidator) {
+        return new JwtService("client-sdk-local-secret-at-least-32-chars", "agent:invoke",
+                tokenStore, tokenValidator);
     }
 
     @Bean
