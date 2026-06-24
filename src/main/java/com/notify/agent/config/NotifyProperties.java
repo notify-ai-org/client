@@ -16,7 +16,7 @@ public class NotifyProperties {
     private String basePackage = "com.notify";
 
     /** acp-server base URL, e.g. http://localhost:8080 */
-    private String acpServerUrl = "ec2-54-84-34-76.compute-1.amazonaws.com";
+    private String acpServerUrl = "http://localhost:8080";
 
     /** Application name for client registration and metrics. */
     private String applicationName = "notify-client";

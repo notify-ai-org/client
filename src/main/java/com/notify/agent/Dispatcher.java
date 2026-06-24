@@ -26,8 +26,6 @@ import com.notify.agent.client.models.EventSchedule;
 import com.notify.agent.client.models.subject.Subject;
 import com.notify.agent.service.JwtService;
 
-import io.jsonwebtoken.Claims;
-
 /**
  * Thread that pulls records from the Buffer and sends them to acp-server (or
  * notification engine) based on RecordType. Applies routing by type only.
@@ -132,10 +130,7 @@ public class Dispatcher implements Runnable {
                     eventBatch.clear();
                     log.debug("Preparing to send {} event capture(s) to Kafka topic '{}'", toSend.size(),
                             PRODUCER_TOPIC);
-                    Claims claims = tokenSupplier.getToken() != null
-                            ? jwtService.extractAllClaims(tokenSupplier.getToken())
-                            : null;
-                    if (producer == null || claims == null || "basic".equals(claims.get("profile"))) {
+                    if (producer == null || hasBasicProfile(tokenSupplier.getToken())) {
                         postWithAuthRetry(() -> acpClient.postEventCaptures(toSend, tokenSupplier.getToken()));
                         continue;
                     }
@@ -237,6 +232,31 @@ public class Dispatcher implements Runnable {
             log.warn("Failed to extract tenantId from token", e);
         }
         return "unknown-tenant";
+    }
+
+    /**
+     * The access token is issued and signed by acp-server.  The client SDK does
+     * not have (and must not require) the server signing secret, so it cannot
+     * verify that token locally just to choose a transport.  The receiving
+     * service still validates the signature before accepting an event.
+     */
+    private boolean hasBasicProfile(String token) {
+        if (token == null || token.isBlank()) {
+            return false;
+        }
+        try {
+            String[] parts = token.startsWith("Bearer ") ? token.substring(7).trim().split("\\.") : token.split("\\.");
+            if (parts.length != 3) {
+                return false;
+            }
+            String payload = new String(java.util.Base64.getUrlDecoder().decode(parts[1]),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            return "basic".equals(new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readTree(payload).path("profile").asText());
+        } catch (Exception e) {
+            log.debug("Unable to read JWT profile for transport selection", e);
+            return false;
+        }
     }
 
     private void spawnConsumer() {

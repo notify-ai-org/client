@@ -34,7 +34,10 @@ import java.util.concurrent.Future;
  */
 public class AcpServerClient implements AutoCloseable {
 
-    /** Number of partitions on the {@value #EVENTS_TOPIC} topic. Must match broker config. */
+    /**
+     * Number of partitions on the {@value #EVENTS_TOPIC} topic. Must match broker
+     * config.
+     */
     private static final int NUM_PARTITIONS = 12;
     private static final String EVENTS_TOPIC = "notify-v1-events";
 
@@ -50,10 +53,12 @@ public class AcpServerClient implements AutoCloseable {
      * Minimal config needed to build a Kafka producer.
      *
      * @param bootstrapServers comma-separated {@code host:port} list
-     * @param bearerToken      JWT that will be attached to every Kafka record header;
+     * @param bearerToken      JWT that will be attached to every Kafka record
+     *                         header;
      *                         may be {@code null} for unauthenticated clusters
      */
-    public record KafkaConfig(String bootstrapServers, String bearerToken) {}
+    public record KafkaConfig(String bootstrapServers, String bearerToken) {
+    }
 
     private KafkaConfig kafkaConfig;
 
@@ -82,8 +87,6 @@ public class AcpServerClient implements AutoCloseable {
                 .header("Content-Type", "application/json")
                 .timeout(Duration.ofSeconds(15))
                 .POST(HttpRequest.BodyPublishers.ofString(json));
-        if (bearerToken != null && !bearerToken.isEmpty())
-            b.header("Authorization", "Bearer " + bearerToken);
 
         HttpResponse<String> r = httpClient.send(b.build(), HttpResponse.BodyHandlers.ofString());
         if (r.statusCode() >= 400)
@@ -177,14 +180,17 @@ public class AcpServerClient implements AutoCloseable {
      * Sends each {@link EventCapture} individually to the {@value #EVENTS_TOPIC}
      * Kafka topic.
      *
-     * <p>Partition assignment: {@code abs(subjectId.hashCode()) % NUM_PARTITIONS}
+     * <p>
+     * Partition assignment: {@code abs(subjectId.hashCode()) % NUM_PARTITIONS}
      * — keeps all events for the same subject on the same partition, preserving
      * order. Falls back to partition 0 when subjectId is absent.
      *
-     * <p>Message key format: {@code tenantId:eventId:subjectId} (matches the
+     * <p>
+     * Message key format: {@code tenantId:eventId:subjectId} (matches the
      * server-side consumer's parsing logic).
      *
-     * <p>An {@code Authorization: Bearer <token>} header is attached to every
+     * <p>
+     * An {@code Authorization: Bearer <token>} header is attached to every
      * record when a bearer token is configured, so the server-side consumer can
      * validate the JWT on receipt.
      *
@@ -194,7 +200,8 @@ public class AcpServerClient implements AutoCloseable {
      * @throws IllegalStateException if {@link #configureKafka} was not called first
      */
     public int postEventCapturesViaKafka(List<EventCapture> list, String bearerToken) throws Exception {
-        if (list == null || list.isEmpty()) return 0;
+        if (list == null || list.isEmpty())
+            return 0;
 
         KafkaProducer<String, EventCapture> producer = getOrCreateProducer();
         int sent = 0;
@@ -215,11 +222,11 @@ public class AcpServerClient implements AutoCloseable {
             // Partition = abs(subjectId.hashCode()) % NUM_PARTITIONS
             int partition = Math.abs(subjectId.hashCode()) % NUM_PARTITIONS;
 
-            // Key: tenantId:eventId:subjectId  (matches consumer's keyParts[0..2])
+            // Key: tenantId:eventId:subjectId (matches consumer's keyParts[0..2])
             String messageKey = tenantId + ":" + eventId + ":" + subjectId;
 
-            ProducerRecord<String, EventCapture> record =
-                    new ProducerRecord<>(EVENTS_TOPIC, partition, messageKey, capture);
+            ProducerRecord<String, EventCapture> record = new ProducerRecord<>(EVENTS_TOPIC, partition, messageKey,
+                    capture);
 
             // Attach bearer token as an Authorization header on the Kafka record
             String token = bearerToken != null ? bearerToken
@@ -238,7 +245,9 @@ public class AcpServerClient implements AutoCloseable {
         return sent;
     }
 
-    /** Lazily creates the Kafka producer; thread-safe via double-checked locking. */
+    /**
+     * Lazily creates the Kafka producer; thread-safe via double-checked locking.
+     */
     private KafkaProducer<String, EventCapture> getOrCreateProducer() {
         if (kafkaProducer == null) {
             synchronized (producerLock) {
@@ -256,18 +265,19 @@ public class AcpServerClient implements AutoCloseable {
     /**
      * Builds a {@link KafkaProducer} for {@link EventCapture} values.
      *
-     * <p>Producer settings:
+     * <p>
+     * Producer settings:
      * <ul>
-     *   <li>{@code acks=all} — leader + all in-sync replicas acknowledge before
-     *       success (strongest durability guarantee).
-     *   <li>{@code enable.idempotence=true} — exactly-once within a single
-     *       producer session; prevents duplicate records on retries.
-     *   <li>{@code retries=3} — automatic retry on transient failures.
-     *   <li>{@code linger.ms=0} — no artificial batching delay; records are sent
-     *       immediately (matches synchronous HTTP-like usage pattern).
-     *   <li>{@code batch.size=16384} — standard 16 KB batch ceiling.
-     *   <li>{@code compression.type=lz4} — lightweight compression reduces
-     *       network overhead for JSON payloads.
+     * <li>{@code acks=all} — leader + all in-sync replicas acknowledge before
+     * success (strongest durability guarantee).
+     * <li>{@code enable.idempotence=true} — exactly-once within a single
+     * producer session; prevents duplicate records on retries.
+     * <li>{@code retries=3} — automatic retry on transient failures.
+     * <li>{@code linger.ms=0} — no artificial batching delay; records are sent
+     * immediately (matches synchronous HTTP-like usage pattern).
+     * <li>{@code batch.size=16384} — standard 16 KB batch ceiling.
+     * <li>{@code compression.type=lz4} — lightweight compression reduces
+     * network overhead for JSON payloads.
      * </ul>
      */
     private static KafkaProducer<String, EventCapture> buildProducer(KafkaConfig config) {
@@ -282,7 +292,7 @@ public class AcpServerClient implements AutoCloseable {
         props.put(ProducerConfig.RETRIES_CONFIG, 3);
 
         // Throughput / latency
-        props.put(ProducerConfig.LINGER_MS_CONFIG, 0);      // no batching delay
+        props.put(ProducerConfig.LINGER_MS_CONFIG, 0); // no batching delay
         props.put(ProducerConfig.BATCH_SIZE_CONFIG, 16_384); // 16 KB
         props.put(ProducerConfig.COMPRESSION_TYPE_CONFIG, "lz4");
 
@@ -305,7 +315,8 @@ public class AcpServerClient implements AutoCloseable {
             b.header("X-Idempotency-Key", idempotencyKey);
 
         HttpResponse<String> r = httpClient.send(b.build(), HttpResponse.BodyHandlers.ofString());
-        // 409 Conflict is safely returned if the idiosyncrasy filter blocks as duplicate
+        // 409 Conflict is safely returned if the idiosyncrasy filter blocks as
+        // duplicate
         if (r.statusCode() >= 400 && r.statusCode() != 409) {
             throw new RuntimeException("POST " + path + " failed: " + r.statusCode() + " " + r.body());
         }
