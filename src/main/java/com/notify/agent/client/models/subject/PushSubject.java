@@ -1,5 +1,6 @@
 package com.notify.agent.client.models.subject;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.notify.agent.client.enums.Channel;
 
 import java.util.Map;
@@ -7,6 +8,7 @@ import java.util.Objects;
 
 public final class PushSubject extends Subject {
 
+    @JsonProperty("deviceToken")
     private final String deviceToken;
 
     public PushSubject(
@@ -20,6 +22,10 @@ public final class PushSubject extends Subject {
 
     @Override
     public String getAddress() {
+        return deviceToken;
+    }
+
+    public String getDeviceToken() {
         return deviceToken;
     }
 

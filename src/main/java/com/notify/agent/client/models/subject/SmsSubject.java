@@ -1,5 +1,6 @@
 package com.notify.agent.client.models.subject;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.notify.agent.client.enums.Channel;
 
 import java.util.Map;
@@ -7,6 +8,7 @@ import java.util.Objects;
 
 public final class SmsSubject extends Subject {
 
+    @JsonProperty("phoneNumber")
     private final String phoneNumber;
 
     public SmsSubject(
@@ -20,6 +22,10 @@ public final class SmsSubject extends Subject {
 
     @Override
     public String getAddress() {
+        return phoneNumber;
+    }
+
+    public String getPhoneNumber() {
         return phoneNumber;
     }
 

@@ -1,5 +1,6 @@
 package com.notify.agent.client.models.subject;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.notify.agent.client.enums.Channel;
 
 import java.util.Map;
@@ -7,6 +8,7 @@ import java.util.Objects;
 
 public final class EmailSubject extends Subject {
 
+    @JsonProperty("email")
     private final String email;
     private final String cc;
     private final String bcc;
@@ -26,6 +28,10 @@ public final class EmailSubject extends Subject {
 
     @Override
     public String getAddress() {
+        return email;
+    }
+
+    public String getEmail() {
         return email;
     }
 

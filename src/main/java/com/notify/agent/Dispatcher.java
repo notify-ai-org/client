@@ -109,6 +109,7 @@ public class Dispatcher implements Runnable {
                             List<ClassModel> vocab = (List<ClassModel>) r.getPayload();
                             log.debug("Posting {} vocabulary model(s) to acp-server", vocab.size());
                             postWithAuthRetry(() -> acpClient.postVocabulary(vocab, tokenSupplier.getToken()));
+
                             log.debug("Vocabulary post completed");
                             break;
                         case RULE:
@@ -131,7 +132,22 @@ public class Dispatcher implements Runnable {
                     log.debug("Preparing to send {} event capture(s) to Kafka topic '{}'", toSend.size(),
                             PRODUCER_TOPIC);
                     if (producer == null || hasBasicProfile(tokenSupplier.getToken())) {
-                        postWithAuthRetry(() -> acpClient.postEventCaptures(toSend, tokenSupplier.getToken()));
+                        try {
+                            postWithAuthRetry(() -> acpClient.postEventCaptures(toSend, tokenSupplier.getToken()));
+                            log.debug("Batch of {} record(s) fully processed; marking buffer flushed", batch.size());
+                        } catch (Exception e) {
+                            log.error("Failed to send events to acp-server; leaving buffer unflushed so it can retry",
+                                    e);
+                            eventBatch.addAll(toSend);
+                            batch.clear();
+                            Thread.sleep(1000);
+                            continue;
+                        } finally {
+                            if (eventBatch.isEmpty()) {
+                                buffer.markFlushed();
+                                batch.clear();
+                            }
+                        }
                         continue;
                     }
                     for (EventCapture event : toSend) {
@@ -235,9 +251,9 @@ public class Dispatcher implements Runnable {
     }
 
     /**
-     * The access token is issued and signed by acp-server.  The client SDK does
+     * The access token is issued and signed by acp-server. The client SDK does
      * not have (and must not require) the server signing secret, so it cannot
-     * verify that token locally just to choose a transport.  The receiving
+     * verify that token locally just to choose a transport. The receiving
      * service still validates the signature before accepting an event.
      */
     private boolean hasBasicProfile(String token) {

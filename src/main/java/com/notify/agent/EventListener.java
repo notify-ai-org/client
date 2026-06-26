@@ -175,6 +175,7 @@ public class EventListener {
         try {
             List<?> subjects = invokeManager.invokeSubjectSupplier(eventKey, args);
             long executionTime = System.currentTimeMillis() - t0;
+            validateSubjects(eventKey, subjects);
 
             resultDto.setSubjects((List<Subject>) subjects);
             resultDto.setExecutionTimeMillis(executionTime);
@@ -189,6 +190,26 @@ public class EventListener {
         }
 
         return resultDto;
+    }
+
+    private void validateSubjects(String eventKey, List<?> subjects) {
+        if (subjects == null) {
+            throw new IllegalStateException("@SubjectSupplier for event '" + eventKey + "' returned null");
+        }
+        for (int i = 0; i < subjects.size(); i++) {
+            Object candidate = subjects.get(i);
+            if (!(candidate instanceof Subject subject)) {
+                throw new IllegalStateException("@SubjectSupplier for event '" + eventKey
+                        + "' returned non-Subject item at index " + i + ": "
+                        + (candidate == null ? "null" : candidate.getClass().getName()));
+            }
+            String address = subject.getAddress();
+            if (address == null || address.isBlank()) {
+                throw new IllegalStateException("@SubjectSupplier for event '" + eventKey
+                        + "' returned " + subject.getChannel() + " subject at index " + i
+                        + " without a destination address");
+            }
+        }
     }
 
     /**
