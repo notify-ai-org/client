@@ -5,13 +5,13 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.notify</groupId>
+        <groupId>dev.notify-ai</groupId>
         <artifactId>vocabulary-agent-parent</artifactId>
         <version>1.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <groupId>com.notify</groupId>
+    <groupId>dev.notify-ai</groupId>
     <artifactId>notify-ai-agent-client</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
@@ -48,9 +48,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.notify</groupId>
+            <groupId>dev.notify-ai</groupId>
             <artifactId>vocabulary-agent-annotations</artifactId>
-            <version>1.0-SNAPSHOT</version>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -73,7 +73,7 @@
              Redis is excluded — the client SDK uses TokenHolder (in-memory)
              and NoOpTokenValidator instead of the Redis implementations. -->
         <dependency>
-            <groupId>com.notify</groupId>
+            <groupId>dev.notify-ai</groupId>
             <artifactId>vocabulary-agent-common</artifactId>
             <version>1.0.0</version>
             <exclusions>
@@ -130,8 +130,8 @@
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <artifactSet>
                                 <includes>
-                                    <include>com.notify:vocabulary-agent-annotations</include>
-                                    <include>com.notify:vocabulary-agent-common</include>
+                                    <include>dev.notify-ai:vocabulary-agent-annotations</include>
+                                    <include>dev.notify-ai:vocabulary-agent-common</include>
                                     <include>io.jsonwebtoken:jjwt-api</include>
                                     <include>io.jsonwebtoken:jjwt-impl</include>
                                     <include>io.jsonwebtoken:jjwt-jackson</include>
