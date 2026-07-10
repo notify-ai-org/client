@@ -1,7 +1,6 @@
-
-<h1 align="center" style="border-bottom: none;">
-  <span style="font-weight: 800;">Notify<span style="background: linear-gradient(135deg, #f59e0b 0%, #eab308 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">.ai</span></span>
-</h1>
+<p align="center">
+  <img src="assets/notify-ai-logo.svg" alt="Notify.ai" width="96" />
+</p>
 <p align="center"><b>Client SDK</b> — Lightweight Java Client SDK for Event Interception and Metadata Transmission</p>
 
 ---
