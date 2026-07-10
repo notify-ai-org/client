@@ -1,6 +1,9 @@
 <p align="center">
   <img src="assets/notify-ai-logo.svg" alt="Notify.ai" width="96" />
 </p>
+
+<h1 align="center">Notify.ai</h1>
+
 <p align="center"><b>Client SDK</b> — Lightweight Java Client SDK for Event Interception and Metadata Transmission</p>
 
 ---
