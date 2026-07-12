@@ -95,19 +95,17 @@ public class VocabularyManager {
         Vocabulary root = toInstanceVocabularyGraph(instance);
         java.util.Map<String, Object> result = new java.util.HashMap<>();
         if (root != null) {
-            for (Vocabulary child : root.getChildren()) {
-                flattenVocabulary(child.getTerm(), child, result);
-            }
+            flattenVocabulary("", root, result);
         }
         return result;
     }
 
     private void flattenVocabulary(String prefix, Vocabulary current, java.util.Map<String, Object> result) {
         if (current.getChildren().isEmpty()) {
-            result.put(prefix, current.getCurrentValue());
+            result.put(current.getTerm(), current.getCurrentValue());
         } else {
             for (Vocabulary child : current.getChildren()) {
-                String newPrefix = prefix.isEmpty() ? child.getTerm() : prefix + "." + child.getTerm();
+                String newPrefix = prefix.isEmpty() ? current.getTerm() : prefix + "." + current.getTerm();
                 flattenVocabulary(newPrefix, child, result);
             }
         }
