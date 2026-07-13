@@ -1,7 +1,9 @@
 package com.notify.agent;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.notify.agent.annotations.*;
 import com.notify.agent.annotations.Callback.When;
+import com.notify.agent.client.models.EventCapture;
 import com.notify.agent.client.models.metadata.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,6 +13,7 @@ import org.reflections.Reflections;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.Handler;
 import java.util.logging.Level;
@@ -215,6 +218,24 @@ class AnnotationProcessorTest {
             assertThat(meta.getVersion()).isEqualTo("v2");
             assertThat(meta.getMethod()).isNotNull();
             assertThat(meta.getDeclaringClass()).isNotNull();
+        }
+
+        @Test @DisplayName("Valid @Event metadata serializes without raw reflection fields")
+        void validEvent_metadataIsJsonSafe() throws Exception {
+            AnnotationProcessor ap = new AnnotationProcessor(VALID_PKG);
+            ap.process();
+            EventMetadata meta = ap.getEvents().get(0);
+
+            EventCapture capture = new EventCapture();
+            capture.setPayload(Map.of("EventMetadata", meta));
+
+            String json = new ObjectMapper().writeValueAsString(List.of(capture));
+
+            assertThat(json).contains("\"methodName\":\"onOrderPlaced\"");
+            assertThat(json).contains("\"declaringClassName\":\"com.notify.agent.fixtures.valid.EventFixtures\"");
+            assertThat(json).doesNotContain("\"method\":");
+            assertThat(json).doesNotContain("\"declaringClass\":");
+            assertThat(json).doesNotContain("annotatedReturnType");
         }
     }
 
