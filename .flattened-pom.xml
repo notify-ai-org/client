@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>dev.notify-ai</groupId>
   <artifactId>notify-ai-agent-client</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <name>Notification Engine Client SDK</name>
   <description>Client SDK for Notification Engine - attaches to Spring Boot, sends vocabulary/rules/events to acp-server</description>
   <url>https://github.com/rohan-naik07/notify-ai</url>

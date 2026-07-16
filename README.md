@@ -15,18 +15,13 @@ The **Notify.ai Client SDK** is a lightweight Java library that integrates into 
 ## 🚀 Integration Guide
 
 ### 1. Add Dependencies
-Add the client SDK and annotations dependencies to your application's `pom.xml`:
+Add the client SDK dependency to your application's `pom.xml`:
 
 ```xml
 <dependency>
-  <groupId>com.notify</groupId>
-  <artifactId>vocabulary-agent-client</artifactId>
-  <version>1.0.0</version>
-</dependency>
-<dependency>
-  <groupId>com.notify</groupId>
-  <artifactId>vocabulary-agent-annotations</artifactId>
-  <version>1.0.0</version>
+  <groupId>dev.notify-ai</groupId>
+  <artifactId>notify-ai-agent-client</artifactId>
+  <version>1.0.1</version>
 </dependency>
 ```
 
@@ -45,7 +40,7 @@ Configure connection parameters in your `application.yml` or `application.proper
 ```yaml
 notify:
   base-package: com.myapp
-  acp-server-url: http://localhost:8080
+  acp-server-url: https://app.notify-ai.dev
   application-name: my-service
   buffer-batch-size: 100
   buffer-flush-timeout-ms: 5000
