@@ -48,11 +48,6 @@
 
     <dependencies>
         <dependency>
-            <groupId>dev.notify-ai</groupId>
-            <artifactId>vocabulary-agent-annotations</artifactId>
-            <version>1.0.0</version>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
         </dependency>
@@ -130,7 +125,6 @@
                             <createDependencyReducedPom>true</createDependencyReducedPom>
                             <artifactSet>
                                 <includes>
-                                    <include>dev.notify-ai:vocabulary-agent-annotations</include>
                                     <include>dev.notify-ai:vocabulary-agent-common</include>
                                     <include>io.jsonwebtoken:jjwt-api</include>
                                     <include>io.jsonwebtoken:jjwt-impl</include>

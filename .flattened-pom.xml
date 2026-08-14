@@ -34,12 +34,6 @@
   </distributionManagement>
   <dependencies>
     <dependency>
-      <groupId>dev.notify-ai</groupId>
-      <artifactId>vocabulary-agent-annotations</artifactId>
-      <version>1.0.0</version>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter</artifactId>
       <version>3.2.0</version>
