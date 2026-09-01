@@ -21,7 +21,7 @@ Add the client SDK dependency to your application's `pom.xml`:
 <dependency>
   <groupId>dev.notify-ai</groupId>
   <artifactId>notify-ai-agent-client</artifactId>
-  <version>0.0.1</version>
+  <version>1.0.1</version>
 </dependency>
 ```
 

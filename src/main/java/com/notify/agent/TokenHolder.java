@@ -1,20 +1,17 @@
 package com.notify.agent;
 
-import com.notify.agent.interfaces.TokenStore;
-
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Holds access token, refresh token, and expiry for the client SDK.
- * Thread-safe. Implements {@link TokenStore} so it can be injected into
- * {@code JwtService} without requiring any network or persistence dependency.
+ * Thread-safe and entirely in-memory, with no network or persistence dependency.
  *
  * <p>
- * {@link #invalidateTokens} clears the in-memory state; there is no
+ * {@link #clear()} clears the in-memory state; there is no
  * denylist — the SDK trusts JWT expiry for revocation.
  * </p>
  */
-public class TokenHolder implements TokenStore {
+public class TokenHolder {
 
     private final AtomicReference<String> token = new AtomicReference<>(null);
     private final AtomicReference<String> refreshToken = new AtomicReference<>(null);
@@ -63,30 +60,25 @@ public class TokenHolder implements TokenStore {
                 : Long.MAX_VALUE;
     }
 
-    // -------------------------------------------------------------------------
-    // TokenStore implementation
-    // -------------------------------------------------------------------------
-
     /**
-     * Stores the access token in-memory.
-     * TTL parameters are used to compute the local expiry; no external store is
-     * involved.
+     * Stores a token set in memory. The user ID and refresh-token TTL are accepted
+     * for compatibility with earlier SDK releases.
      */
-    @Override
     public void storeTokens(String userId, String accessToken, String refreshToken,
-            String headerToken,
-            long accessTtlSeconds, long refreshTtlSeconds) {
+            String headerToken, long accessTtlSeconds, long refreshTtlSeconds) {
         setTokens(accessToken, refreshToken, headerToken, accessTtlSeconds * 1000);
     }
 
-    /**
-     * Clears the in-memory token state.
-     * Token arguments are accepted for interface compatibility but are not stored.
-     */
-    @Override
+    /** Clears the supplied token set from memory. */
     public void invalidateTokens(String accessToken, String refreshToken) {
+        clear();
+    }
+
+    /** Clears the in-memory token state. */
+    public void clear() {
         token.set(null);
         this.refreshToken.set(null);
+        this.headerToken.set(null);
         this.expiresAtMs = 0;
     }
 }

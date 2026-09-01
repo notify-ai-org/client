@@ -9,10 +9,6 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import com.notify.agent.annotations.EnableNotify;
-import com.notify.agent.auth.NoOpTokenValidator;
-import com.notify.agent.interfaces.TokenStore;
-import com.notify.agent.interfaces.TokenValidator;
-import com.notify.agent.service.JwtService;
 
 /**
  * Spring Boot auto-configuration for the Notification Engine Client SDK.
@@ -69,25 +65,6 @@ public class NotifyAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean(TokenStore.class)
-    public TokenStore tokenStore(TokenHolder tokenHolder) {
-        return tokenHolder;
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(TokenValidator.class)
-    public TokenValidator tokenValidator() {
-        return new NoOpTokenValidator();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public JwtService jwtService(TokenStore tokenStore, TokenValidator tokenValidator) {
-        return new JwtService("client-sdk-local-secret-at-least-32-chars", "agent:invoke",
-                tokenStore, tokenValidator);
-    }
-
-    @Bean
     @ConditionalOnMissingBean
     public MetricsManager metricsManager() {
         return new MetricsManager();
@@ -105,7 +82,6 @@ public class NotifyAutoConfiguration {
             AnnotationProcessor annotationProcessor,
             VocabularyManager vocabularyManager,
             Buffer buffer,
-            JwtService jwtService,
             AcpServerClient acpServerClient,
             TokenHolder tokenHolder,
             InvokeManager invokeManager,
@@ -113,7 +89,7 @@ public class NotifyAutoConfiguration {
             MetricsManager metricsManager,
             EventListener eventListener) {
         return new Bootstrapper(props, annotationProcessor, vocabularyManager, buffer,
-                acpServerClient, tokenHolder, invokeManager, kafkaConfig, jwtService, metricsManager, eventListener);
+                acpServerClient, tokenHolder, invokeManager, kafkaConfig, metricsManager, eventListener);
     }
 
     @Bean

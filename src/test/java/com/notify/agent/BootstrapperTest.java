@@ -8,7 +8,6 @@ import com.notify.agent.client.models.metadata.EventMetadata;
 import com.notify.agent.client.models.metadata.RuleMetadata;
 import com.notify.agent.config.KafkaConfig;
 import com.notify.agent.config.NotifyProperties;
-import com.notify.agent.service.JwtService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -62,8 +61,6 @@ class BootstrapperTest {
     @Mock
     private Buffer buffer;
     @Mock
-    private JwtService jwtService;
-    @Mock
     private AcpServerClient acpClient;
     @Mock
     private TokenHolder tokenHolder;
@@ -82,7 +79,7 @@ class BootstrapperTest {
 
     private Bootstrapper bootstrapper() {
         return new Bootstrapper(props, annotationProcessor, vocabularyManager, buffer,
-                acpClient, tokenHolder, invokeManager, kafkaConfig, jwtService, metricsManager, eventListener);
+                acpClient, tokenHolder, invokeManager, kafkaConfig, metricsManager, eventListener);
     }
 
     private static String makeToken(String clientId, String apiKey, String apiSecret) throws Exception {

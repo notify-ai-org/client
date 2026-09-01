@@ -24,7 +24,6 @@ import com.notify.agent.client.models.ClassModel;
 import com.notify.agent.client.models.EventCapture;
 import com.notify.agent.client.models.EventSchedule;
 import com.notify.agent.client.models.subject.Subject;
-import com.notify.agent.service.JwtService;
 
 /**
  * Thread that pulls records from the Buffer and sends them to acp-server (or
@@ -37,7 +36,6 @@ public class Dispatcher implements Runnable {
     private final Buffer buffer;
     private final AcpServerClient acpClient;
     private final TokenHolder tokenSupplier;
-    private final JwtService jwtService;
     private final Runnable onTokenExpired;
     private final EventListener eventListener;
     private volatile boolean running = true;
@@ -50,7 +48,6 @@ public class Dispatcher implements Runnable {
     private final KafkaProducer<String, EventCapture> producer;
 
     public Dispatcher(Buffer buffer, AcpServerClient acpClient,
-            JwtService service,
             TokenHolder tokenSupplier, Runnable onTokenExpired,
             KafkaConsumer<String, EventSchedule> consumer, KafkaProducer<String, EventCapture> producer,
             EventListener eventListener) {
@@ -62,7 +59,6 @@ public class Dispatcher implements Runnable {
         this.consumer = consumer;
         this.producer = producer;
         this.eventListener = eventListener;
-        this.jwtService = service;
         this.partitions = producer != null ? producer.partitionsFor(PRODUCER_TOPIC).size() : 0;
     }
 
