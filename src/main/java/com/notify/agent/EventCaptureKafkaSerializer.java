@@ -28,9 +28,10 @@ public class EventCaptureKafkaSerializer implements Serializer<EventCapture> {
     public byte[] serialize(String topic, EventCapture data) {
         if (data == null) return null;
         try {
+            CredentialPayloadPolicy.validate(data.getPayload());
             return objectMapper.writeValueAsBytes(data);
         } catch (Exception e) {
-            throw new SerializationException("Failed to serialize EventCapture to byte[]", e);
+            throw new SerializationException("EventCapture serialization rejected");
         }
     }
 

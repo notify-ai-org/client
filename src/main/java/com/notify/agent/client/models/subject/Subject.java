@@ -14,7 +14,9 @@ import java.util.UUID;
         @JsonSubTypes.Type(value = EmailSubject.class, name = "EMAIL"),
         @JsonSubTypes.Type(value = SmsSubject.class, name = "SMS"),
         @JsonSubTypes.Type(value = PushSubject.class, name = "PUSH"),
-        @JsonSubTypes.Type(value = WebhookSubject.class, name = "WEBHOOK")
+        @JsonSubTypes.Type(value = WebhookSubject.class, name = "WEBHOOK"),
+        @JsonSubTypes.Type(value = WhatsAppSubject.class, name = "WHATSAPP"),
+        @JsonSubTypes.Type(value = InAppSubject.class, name = "IN_APP")
 })
 @JsonIgnoreProperties({ "subjectId", "address", "addressFingerprint" })
 public abstract class Subject implements Serializable {
